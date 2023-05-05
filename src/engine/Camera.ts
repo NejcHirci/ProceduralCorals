@@ -17,7 +17,7 @@ export class Camera implements GameEntity {
       75,
       window.innerWidth / window.innerHeight,
       0.1,
-      1000
+      2000
     )
     this.instance.position.z = 5
     this.instance.position.y = 2

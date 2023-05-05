@@ -1,10 +1,10 @@
 {
-  "name": "threejs-ts-starter",
+  "name": "procedural-corals",
   "version": "0.1.0",
-  "description": "Simple starter for Three.js projects with TypeScript",
+  "description": "Procedural Corals in Three.js",
   "main": "index.html",
-  "repository": "https://github.com/mayacoda/simple-threejs-typescript-starter",
-  "author": "Maya Nedeljković Batić",
+  "repository": "https://github.com/NejcHirci/ProceduralCorals",
+  "author": "Nejc Hirci",
   "license": "MIT",
   "scripts": {
     "dev": "vite",
