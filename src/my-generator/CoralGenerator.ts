@@ -1,50 +1,74 @@
 import * as THREE from 'three';
-
+import * as lil from 'lil-gui';
 import * as Utils from './Utils';
 
 export class CoralGenerator {
-    // Generation parameters
-    public numAttractors: number = 1;
-    public radius: number = 3;
+    // Attractor parameters
+    public attractors: THREE.Vector3[] = [];
+    public attractorCount: number = 1;
+    public attractorStrength: number = 0.3;
+    public attractorKillRange: number = 0.3;
+    public attractorRadius: number = 3;
+
+    // Growth parameters
     public startPosition: THREE.Vector3 = new THREE.Vector3(0, 0, 0);
-    public branchLength: number = 0.1;
-    public timeBetweenIterations: number = 0.01;
-    public attractorRadius: number = 0.3;
-    public killRange: number = 0.1;
-    public randomGrowth: number = 0.1;
+    public branchLength: number = 0.05;
+    public timeBetweenIterations: number = 0.1;
+    public randomGrowth: number = 0.5;
+    public minEnergy: number = 0.01;
 
     // Geometry parameters
     public radialSegments: number = 20;
-    public extremitiesSize: number = 0.01;
-    public invertGrowth: number = 1.0;
+    public extremitiesSize: number = 0.05;
 
-    // Internal variables
-    public attractors: THREE.Vector3[] = [];
+    // Internal variables    
     private activeAttractors: number[] = [];
-
-    private rootBranch: Branch | undefined = undefined;
     private branches: Branch[] = [];
     private extremities: Branch[] = [];
+    private numRemainingAttractors: number = 0;
     private timeSinceLastIteration: number = 0;
 
     public geometry: THREE.BufferGeometry;
 
+    // Environment
+    public environment: Environment;
+
     constructor() {
         this.GenerateAttractors();
         this.geometry = new THREE.BufferGeometry();
+        this.environment = new Environment();
         this.init();
     }
 
     init() {
+        let closestAttr = null;
+        let closestDist = 1000;
+
         // Generate k first branches based on attractors
         this.attractors.every((attractor) => {
-            if (attractor.distanceTo(this.startPosition) < this.attractorRadius * 3) {
-                let direction = attractor.clone().sub(this.startPosition).normalize();
-                let branch = new Branch(this.startPosition, direction.multiplyScalar(this.branchLength), direction);
+            let dist = attractor.distanceTo(this.startPosition);
+            if (dist < this.attractorStrength * 3.0) {
+                let start = this.startPosition.clone();
+                let direction = attractor.clone().sub(this.startPosition);
+                direction.normalize();
+                let end = start.clone().add(direction.multiplyScalar(this.branchLength));
+                let branch = new Branch(start, end, direction, null, this.extremitiesSize);
                 this.branches.push(branch);
             }
-            return this.branches.length < 10;
+            if (dist < closestDist) {
+                closestDist = dist;
+                closestAttr = attractor;
+            }
+            if (this.branches.length > 10) return false;
+            return true;
         });
+
+        if (this.branches.length == 0) {
+            let direction = closestAttr.clone().sub(this.startPosition);
+            direction.normalize();
+            let branch = new Branch(this.startPosition, direction.multiplyScalar(this.branchLength), direction, null, this.extremitiesSize);
+            this.branches.push(branch);
+        }
     }
 
     update(delta: number) {
@@ -54,15 +78,15 @@ export class CoralGenerator {
 
             // Set branches with no children as new extremities
             this.extremities = this.branches.filter((branch) => branch.children.length == 0);
-
             this.extremities.forEach((extrem) => extrem.grown = true);
 
-            // Remove attractors in kill range
+            // Remove attractors in kill range and add energy to branches
             for (let i = this.attractors.length-1; i >= 0 ; i--) {
                 this.branches.every((branch) => {
-                    if (branch.end.distanceTo(this.attractors[i]) < this.killRange) {
+                    if (branch.end.distanceTo(this.attractors[i]) < this.attractorKillRange) {
+                        branch.energy += 1;
                         this.attractors.splice(i, 1);
-                        this.numAttractors--;
+                        this.numRemainingAttractors--;
                         console.log("Killed attractor");
                         // If attractor is killed, stop
                         return false;
@@ -72,120 +96,21 @@ export class CoralGenerator {
                 });
             }
 
-            if (this.numAttractors > 0) {
-                // Clear active attractors
-                this.activeAttractors = [];
-                this.branches.forEach((b) => b.attractors = []);
-
-                // Associate each attractor with a branch
-                this.attractors.forEach((attractor, index) => {
-                    let minDist = Infinity;
-                    let minBranch : Branch | undefined = undefined;
-                    this.branches.forEach((branch) => {
-                        let dist = branch.end.distanceTo(attractor);
-                        if (dist < minDist && dist < this.attractorRadius) {
-                            minDist = dist;
-                            minBranch = branch;
-                        }
-                    });
-
-                    if (minBranch != null) {
-                        minBranch.attractors.push(attractor);
-                        this.activeAttractors.push(index);
-                    }
-                });
-
-                // If at least an attraction point is found, we grow the mesh
-                if (this.activeAttractors.length > 0) {
-                    // Clear extremities list because new will be set
-                    this.extremities = [];
-
-                    // New branches list
-                    let newBranches: Branch[] = [];
-
-                    // Grow each branch
-                    this.branches.forEach((branch) => {
-                        if (branch.attractors.length > 0) {
-                            // Compute new direction
-                            let newDirection = new THREE.Vector3(0, 0, 0);
-                            branch.attractors.forEach((attractor) => {
-                                let direction = attractor.clone().sub(branch.end);
-                                newDirection.add(direction.normalize());
-                            });
-                            newDirection.multiplyScalar(1/branch.attractors.length);
-                            newDirection.add(Utils.RandomInSphere(this.randomGrowth));
-                            newDirection.normalize();
-
-                            // Compute new end position
-                            let newEnd = branch.end.clone().add(newDirection.multiplyScalar(this.branchLength));
-
-                            // Create new branch
-                            let newBranch = new Branch(branch.end, newEnd, newDirection, branch);
-                            newBranch.distanceFromRoot = branch.distanceFromRoot + 1;
-                            newBranches.push(newBranch);
-
-                            // Add new branch to children
-                            branch.children.push(newBranch);
-
-                            // Add new branch to extremities list
-                            this.extremities.push(newBranch);
-                        } else {
-                            if (branch.children.length == 0) {
-                                this.extremities.push(branch);
-                            }
-                        }
-                    });
-                    this.branches.push(...newBranches);
-                }
-                else {
-                    // Otherwise, we just grow the edges of the mesh
-                    this.extremities.forEach((extrem) => {
-                        let start = extrem.end;
-                        let dir = extrem.direction.clone();
-                        dir = dir.add(Utils.RandomInSphere(this.randomGrowth));
-                        let end = extrem.end.clone().add(dir.multiplyScalar(this.branchLength));
-                        dir = dir.normalize();
-                        let newBranch = new Branch(start, end, dir, extrem);
-
-                        // Add child to parent
-                        extrem.children.push(newBranch);
-
-                        // Add new branch to extremities list
-                        this.branches.push(newBranch);
-                        this.extremities.push(newBranch);
-                    });
-                    console.log(this.branches);
-                }
-            }
+            if (this.numRemainingAttractors > 0) { this.Grow(); }
         }
-        this.GenerateMesh();
     }
 
     GenerateAttractors() {
         this.attractors = [];
         this.activeAttractors = [];
-        for (let i = 0; i < this.numAttractors; i++) {
-            let attractor = Utils.RandomInHemisphere(1.5);
+        for (let i = 0; i < this.attractorCount; i++) {
+            let attractor = Utils.RandomInHemisphere(this.attractorRadius);
             this.attractors.push(attractor);
         }
+        this.numRemainingAttractors = this.attractors.length;
     }
 
     GenerateMesh() {
-        // Compute each branch size
-        //this.branches.forEach((branch) => { branch.size = this.extremitiesSize; });
-        for (let i = this.branches.length - 1; i >= 0; i--) {
-            let size = 0;
-            if (this.branches[i].children.length == 0) {
-                size = this.extremitiesSize;
-            } else {
-                this.branches[i].children.forEach((child) => {
-                    size += Math.pow(child.size, this.invertGrowth);
-                });
-                size = Math.pow(size, 1/this.invertGrowth);
-            }
-            this.branches[i].size = size;
-        }
-
         // Create a line for each branch
         let tubes: THREE.Mesh[] = [];
         this.branches.forEach((branch) => {
@@ -209,33 +134,21 @@ export class CoralGenerator {
         let vertices = new Float32Array((this.branches.length + 1) * this.radialSegments * 3);
         let indices = new Uint32Array(this.branches.length * this.radialSegments * 6);
 
-
-        // Compute each branch size
-        for (let i = this.branches.length - 1; i >= 0; i--) {
-            let size = 0;
-            if (this.branches[i].children.length == 0) {
-                size = this.extremitiesSize;
-            } else {
-                this.branches[i].children.forEach((child) => {
-                    size += Math.pow(child.size, this.invertGrowth);
-                });
-                size = Math.pow(size, 1/this.invertGrowth);
-            }
-            this.branches[i].size = size;
-        }
-
         // Construct vertices
         for (let i = 0; i < this.branches.length; i++) {
             this.branches[i].verticesId = i * this.radialSegments;
 
             // Quaternion rotation
             let quaternion = new THREE.Quaternion();
-            quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), this.branches[i].direction);
+            quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), this.branches[i].direction.normalize());
 
             for (let s = 0; s < this.radialSegments; s++) {
                 let angle = s * 2 * Math.PI / this.radialSegments;
-
-                let vertex = new THREE.Vector3(Math.cos(angle) * this.branches[i].size, 0, Math.sin(angle) * this.branches[i].size);
+                
+                let x = Math.cos(angle);
+                let y = Math.sin(angle);
+                let radius = this.branches[i].GetRadius(new THREE.Vector3(x, 0, y));
+                let vertex = new THREE.Vector3(x * radius, 0, y * radius);
                 vertex.applyQuaternion(quaternion);
 
                 vertex.add(this.branches[i].end);
@@ -287,6 +200,125 @@ export class CoralGenerator {
 
         return mesh;
     }
+
+    CreateGUI(gui: lil.GUI) {
+        // Create attractor folder
+        const attractorFolder = gui.addFolder('Attractors');
+        attractorFolder.open();
+        attractorFolder.add(this, 'attractorCount', 0, 300, 1).onChange(() => { this.Reset() });
+        attractorFolder.add(this, 'attractorRadius', 0, 10, 0.1).onChange(() => { this.Reset() });
+        attractorFolder.add(this, 'attractorStrength', 0, 10, 0.1).onChange(() => { this.Reset() });
+        attractorFolder.add(this, "attractorKillRange", 0, 10, 0.1).onChange(() => { this.Reset() });
+
+        this.environment.CreateEnvGui(gui);
+    }
+
+    Reset() {
+        this.geometry.dispose();
+
+        this.GenerateAttractors();
+        this.geometry = new THREE.BufferGeometry();
+        this.branches = [];
+        this.environment = new Environment();
+        this.init();
+
+    }
+
+    private Grow() {
+        // We grow one iteration of all branches
+
+        // Clear active attractors
+        this.activeAttractors = [];
+        this.branches.forEach((b) => b.attractors = []);
+
+        // Associate each attractor with a branch
+        this.attractors.forEach((attractor, index) => {
+            let minDist = Infinity;
+            let minBranch : Branch | undefined = undefined;
+            this.branches.forEach((branch) => {
+                let dist = branch.end.distanceTo(attractor);
+                if (dist < minDist && dist < this.attractorStrength) {
+                    minDist = dist;
+                    minBranch = branch;
+                }
+            });
+
+            if (minBranch != null) {
+                minBranch.attractors.push(attractor);
+                this.activeAttractors.push(index);
+            }
+        });
+
+
+
+        // If at least an attraction point is found, we grow the mesh
+        if (this.activeAttractors.length > 0) {
+            // Clear extremities list because new will be set
+            this.extremities = [];
+
+            // New branches list
+            let newBranches: Branch[] = [];
+
+            // Create new branches in all attractor directions but only if the branch has enough energy and space
+            this.branches.forEach((branch) => {
+                if (branch.attractors.length > 0) {
+                    // Create new branch in all attractor directions
+                    for (let i = 0; i < branch.attractors.length; i++) {
+                    };
+                    // Compute new direction
+                    let newDirection = new THREE.Vector3(0, 0, 0);
+                    
+                    branch.attractors.forEach((attractor) => {
+                        let direction = attractor.clone().sub(branch.end);
+                        newDirection.add(direction.normalize());
+                    });
+
+
+                    newDirection.multiplyScalar(1/branch.attractors.length);
+                    newDirection.add(Utils.RandomInHemisphere(this.randomGrowth));
+                    newDirection.normalize();
+
+                    // Compute new end position
+                    let newEnd = branch.end.clone().add(newDirection.multiplyScalar(this.branchLength));
+
+                    // Create new branch
+                    let newBranch = new Branch(branch.end, newEnd, newDirection, branch, this.extremitiesSize);
+                    newBranch.distanceFromRoot = branch.distanceFromRoot + 1;
+                    newBranches.push(newBranch);
+
+                    // Add new branch to children
+                    branch.children.push(newBranch);
+
+                    // Add new branch to extremities list
+                    this.extremities.push(newBranch);
+                }
+            });
+            this.branches.push(...newBranches);
+        }
+        else {
+            // Otherwise, we just grow the edges of the mesh but we must expend energy
+            this.extremities.forEach((extrem) => {
+                if (extrem.energy/2 > this.minEnergy) {
+                    let start = extrem.end;
+                    let dir = extrem.direction.clone();
+                    dir = dir.add(Utils.RandomInSphere(this.randomGrowth));
+                    let end = extrem.end.clone().add(dir.multiplyScalar(this.branchLength));
+                    dir = dir.normalize();
+                    let newBranch = new Branch(start, end, dir, extrem, this.extremitiesSize, extrem.energy/2);
+
+                    // Add child to parent
+                    extrem.children.push(newBranch);
+
+                    // Add new branch to extremities list
+                    this.branches.push(newBranch);
+                    this.extremities.push(newBranch);
+                }
+            });
+            console.log(this.branches);
+        }
+
+
+    }
 }
 
 class Branch {
@@ -294,32 +326,69 @@ class Branch {
     public end: THREE.Vector3;
     public direction: THREE.Vector3;
     public parent : Branch | null;
-    // @ts-ignore
     public size: number;
-    // @ts-ignore
-    public lastSize: number;
     public children: Branch[] = [];
-    // @ts-ignore
-    public attractors: THREE.Vector3[];
-    // @ts-ignore
-    public verticesId : number;
-    public distanceFromRoot: number = 0;
-    // @ts-ignore
-    public grown: boolean;
+    public attractors: THREE.Vector3[] = [];
+    public verticesId : number = 0;
 
-    constructor(start : THREE.Vector3, end : THREE.Vector3, direction : THREE.Vector3, parent : Branch | null =null) {
+    // Remaining energy
+    public energy : number;
+
+    constructor(
+            start : THREE.Vector3, end : THREE.Vector3, direction : THREE.Vector3, 
+            parent : Branch | null =null, 
+            size : number = 0.05,
+            energy : number = 1) {
+
         this.start = start;
         this.end = end;
         this.direction = direction;
         this.parent = parent;
+        this.size = size;
+        this.energy = energy;
     }
+
+    GetRadius(dir: THREE.Vector3) {
+        // Radius will be computer based on the  the directions of children
+        if (this.children.length == 0) {
+            return this.size;
+        }
+        // Find child with the closest direction to the given x, y
+        let closestChild = null;
+        let closestAngle = 1000;
+        for (let i = 0; i < this.children.length; i++) {
+            let angle = dir.angleTo(this.children[i].direction);
+            if (angle < closestAngle) {
+                closestAngle = angle;
+                closestChild = this.children[i];
+            }
+        }
+        
+        // Add offset based on the angle between the closest child and the given x, y
+        return this.size + Math.sin(closestAngle) * closestChild.size;
+    }
+
+
 }
 
 class Environment {
 
+    public seaCurrent : THREE.Vector3 = new THREE.Vector3(0, 0, 0);
+    public seaCurrentSpeed : number = 0;
+    public seaCurrentTemperature : number = 0;
+    public lightDirection : THREE.Vector3 = new THREE.Vector3(0, 0, 0);
+
 
     
     constructor() {
+    }
+
+    CreateEnvGui(gui : lil.GUI) {
+        let folder = gui.addFolder("Environment");
+        folder.add(this.seaCurrent, "x", -1, 1, 0.01);
+        folder.add(this.seaCurrent, "y", -1, 1, 0.01);
+        folder.add(this.seaCurrent, "z", -1, 1, 0.01);
+        folder.add(this, "seaCurrentSpeed", 0, 1, 0.01);
     }
 
 
