@@ -6,8 +6,8 @@ export class CoralGenerator {
     // Attractor parameters
     public attractors: THREE.Vector3[] = [];
     public attractorCount: number = 1;
-    public attractorStrength: number = 0.3;
-    public attractorKillRange: number = 0.3;
+    public attractorStrength: number = 1.0;
+    public attractorKillRange: number = 0.1;
     public attractorRadius: number = 3;
 
     // Growth parameters
@@ -15,7 +15,7 @@ export class CoralGenerator {
     public branchLength: number = 0.05;
     public timeBetweenIterations: number = 0.1;
     public randomGrowth: number = 0.5;
-    public minEnergy: number = 0.01;
+    public minEnergy: number = 0.001;
 
     // Geometry parameters
     public radialSegments: number = 20;
@@ -50,9 +50,11 @@ export class CoralGenerator {
             if (dist < this.attractorStrength * 3.0) {
                 let start = this.startPosition.clone();
                 let direction = attractor.clone().sub(this.startPosition);
+                direction.add(Utils.RandomInHemisphere(this.randomGrowth));
+                direction.add(this.environment.CalculateSeaCurrentImpact(start));
                 direction.normalize();
                 let end = start.clone().add(direction.multiplyScalar(this.branchLength));
-                let branch = new Branch(start, end, direction, null, this.extremitiesSize);
+                let branch = new Branch(start, end, direction, null, this.extremitiesSize, 1.0);
                 this.branches.push(branch);
             }
             if (dist < closestDist) {
@@ -66,7 +68,7 @@ export class CoralGenerator {
         if (this.branches.length == 0) {
             let direction = closestAttr.clone().sub(this.startPosition);
             direction.normalize();
-            let branch = new Branch(this.startPosition, direction.multiplyScalar(this.branchLength), direction, null, this.extremitiesSize);
+            let branch = new Branch(this.startPosition, direction.multiplyScalar(this.branchLength), direction, null, this.extremitiesSize, 1.0);
             this.branches.push(branch);
         }
     }
@@ -84,7 +86,7 @@ export class CoralGenerator {
             for (let i = this.attractors.length-1; i >= 0 ; i--) {
                 this.branches.every((branch) => {
                     if (branch.end.distanceTo(this.attractors[i]) < this.attractorKillRange) {
-                        branch.energy += 1;
+                        branch.energy *= 1.5;
                         this.attractors.splice(i, 1);
                         this.numRemainingAttractors--;
                         console.log("Killed attractor");
@@ -210,7 +212,7 @@ export class CoralGenerator {
         attractorFolder.add(this, 'attractorStrength', 0, 10, 0.1).onChange(() => { this.Reset() });
         attractorFolder.add(this, "attractorKillRange", 0, 10, 0.1).onChange(() => { this.Reset() });
 
-        this.environment.CreateEnvGui(gui);
+        this.environment.CreateEnvGui(gui, this.Reset.bind(this));
     }
 
     Reset() {
@@ -250,7 +252,6 @@ export class CoralGenerator {
         });
 
 
-
         // If at least an attraction point is found, we grow the mesh
         if (this.activeAttractors.length > 0) {
             // Clear extremities list because new will be set
@@ -261,7 +262,7 @@ export class CoralGenerator {
 
             // Create new branches in all attractor directions but only if the branch has enough energy and space
             this.branches.forEach((branch) => {
-                if (branch.attractors.length > 0) {
+                if (branch.attractors.length > 0 && branch.energy > this.minEnergy) {
                     // Create new branch in all attractor directions
                     for (let i = 0; i < branch.attractors.length; i++) {
                     };
@@ -277,12 +278,17 @@ export class CoralGenerator {
                     newDirection.multiplyScalar(1/branch.attractors.length);
                     newDirection.add(Utils.RandomInHemisphere(this.randomGrowth));
                     newDirection.normalize();
+                    let seaCurrent = this.environment.CalculateSeaCurrentImpact(branch.start);
+                    newDirection.add(seaCurrent);
 
                     // Compute new end position
                     let newEnd = branch.end.clone().add(newDirection.multiplyScalar(this.branchLength));
+                    newDirection.normalize();
 
                     // Create new branch
-                    let newBranch = new Branch(branch.end, newEnd, newDirection, branch, this.extremitiesSize);
+                    let newBranch = new Branch(branch.end, newEnd, newDirection, branch, this.extremitiesSize, branch.energy * 0.75);
+                    branch.energy *= 0.75;
+
                     newBranch.distanceFromRoot = branch.distanceFromRoot + 1;
                     newBranches.push(newBranch);
 
@@ -302,9 +308,12 @@ export class CoralGenerator {
                     let start = extrem.end;
                     let dir = extrem.direction.clone();
                     dir = dir.add(Utils.RandomInSphere(this.randomGrowth));
+                    dir.add(this.environment.CalculateSeaCurrentImpact(start));
                     let end = extrem.end.clone().add(dir.multiplyScalar(this.branchLength));
-                    dir = dir.normalize();
+                    dir.normalize();
                     let newBranch = new Branch(start, end, dir, extrem, this.extremitiesSize, extrem.energy/2);
+
+                    extrem.energy /= 2;
 
                     // Add child to parent
                     extrem.children.push(newBranch);
@@ -373,8 +382,8 @@ class Branch {
 
 class Environment {
 
-    public seaCurrent : THREE.Vector3 = new THREE.Vector3(0, 0, 0);
-    public seaCurrentSpeed : number = 0;
+    public seaCurrent : THREE.Vector3 = new THREE.Vector3(1, 0, 1);
+    public seaCurrentSpeed : number = 0.4;
     public seaCurrentTemperature : number = 0;
     public lightDirection : THREE.Vector3 = new THREE.Vector3(0, 0, 0);
 
@@ -383,12 +392,12 @@ class Environment {
     constructor() {
     }
 
-    CreateEnvGui(gui : lil.GUI) {
+    CreateEnvGui(gui : lil.GUI, reset : () => void) {
         let folder = gui.addFolder("Environment");
-        folder.add(this.seaCurrent, "x", -1, 1, 0.01);
-        folder.add(this.seaCurrent, "y", -1, 1, 0.01);
-        folder.add(this.seaCurrent, "z", -1, 1, 0.01);
-        folder.add(this, "seaCurrentSpeed", 0, 1, 0.01);
+        folder.add(this.seaCurrent, "x", -1, 1, 0.01).onChange(reset);
+        folder.add(this.seaCurrent, "y", -1, 1, 0.01).onChange(reset);
+        folder.add(this.seaCurrent, "z", -1, 1, 0.01).onChange(reset);
+        folder.add(this, "seaCurrentSpeed", 0, 10, 0.01).onChange(reset);
     }
 
 
@@ -398,18 +407,13 @@ class Environment {
          * With increasing distance from the line, the speed will decrease and some minor noise will be added.
          */
 
-        // Compute depth
-        let depth = 100 - position.y;
-
         // Compute direction
-        let direction = new THREE.Vector3(0, 0, 1);
-
-        // Add noise
-        direction.add(Utils.RandomInSphere(0.1));
-        direction.normalize();
+        let direction = this.seaCurrent.clone()
+        direction.normalize()
+        direction.multiplyScalar(this.seaCurrentSpeed);
 
         // Multiply by depth
-        return direction.multiplyScalar(1/depth);
+        return direction;
     }
 
     CalculateLightImpact(position: THREE.Vector3) {

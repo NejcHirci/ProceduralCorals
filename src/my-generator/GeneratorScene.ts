@@ -86,15 +86,18 @@ export class GeneratorScene implements Experience {
         });
 
         // Draw attractor reference mesh
-        if (!this.sampleMesh) {
+        if (!this.sampleMesh || this.sampleMesh.geometry.parameters.radius != this.coralGenerator.attractorRadius) {
+            if (this.sampleMesh) {
+                this.engine.scene.remove(this.sampleMesh);
+                this.sampleMesh.geometry.dispose();
+            }
             this.sampleMesh = new THREE.Mesh(
                 new THREE.SphereGeometry(this.coralGenerator.attractorRadius, 60, 60, 0, 2*Math.PI, 0, Math.PI/2), 
                 new THREE.MeshStandardMaterial({ color: 0x00ff00, wireframe: true, transparent: true, opacity: 0.1 }));
-            this.sampleMesh.castShadow = true;
-            this.sampleMesh.receiveShadow = true;
+            this.sampleMesh.castShadow = false;
+            this.sampleMesh.receiveShadow = false;
             this.engine.scene.add(this.sampleMesh);
         }
-
     }
 
     createSkybox() {
