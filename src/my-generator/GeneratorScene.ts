@@ -65,7 +65,7 @@ export class GeneratorScene implements Experience {
             this.coralMesh.geometry.dispose();
         }
 
-        this.coralMesh = this.coralGenerator.GenerateMesh2();
+        this.coralMesh = this.coralGenerator.GenerateMeshFromVerts();
         this.engine.scene.add(this.coralMesh);
 
         // Remove all attractor meshes
