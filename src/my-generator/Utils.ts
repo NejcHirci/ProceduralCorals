@@ -35,3 +35,46 @@ export function RandomInHemisphere(radius: number) : THREE.Vector3 {
         }
     }
 }
+
+export function RandomInCuboid(x:number, y:number, z:number) {
+    let u = Math.random() * x - x / 2;
+    let v = Math.random() * y - y / 2;
+    let w = Math.random() * z - z / 2;
+    return new THREE.Vector3(u, v, w);
+}
+
+export function RandomInCone(radius: number, h: number, normal: THREE.Vector3) {
+    let eps1 = Math.random();
+    let eps2 = Math.random();
+    let theta = 2 * Math.PI * u;
+    let r = Math.sqrt(v);
+    let x = r * Math.cos(theta);
+    let y = r * Math.sin(theta);
+    let z = 1 - v;
+
+    let v = new THREE.Vector3(x, y, z);
+    let quaternion = new THREE.Quaternion();
+    quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), normal);
+    v.applyQuaternion(quaternion);
+
+    return new THREE.Vector3(x, y, z);
+}
+
+export function RandomInCylinder(radius : number, h : number, normal : THREE.Vector3) {
+    let eps1 = Math.random();
+    let eps2 = Math.random();
+    let eps3 = Math.random();
+
+    let theta = 2 * Math.PI * eps1;
+    let r = radius * Math.sqrt(eps2);
+    let x = r * Math.cos(theta);
+    let y = r * Math.sin(theta);
+    let z = h * eps3;
+
+    let v = new THREE.Vector3(x, y, z);
+    let quaternion = new THREE.Quaternion();
+    quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), normal);
+    v.applyQuaternion(quaternion);
+
+    return v;
+}

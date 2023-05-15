@@ -9,15 +9,19 @@ export class GeneratorScene implements Experience {
     resources: Resource[] = []
     private coralGenerator: CoralGenerator;
     private generatorMeshes: THREE.Mesh[];
-    private coralMesh: THREE.Mesh;
-    private attractorMeshes: THREE.Mesh[] = [];
+    private coralMesh: THREE.Mesh | THREE.LineSegments;
+    private attractorMeshes: THREE.InstancedMesh;
     private sampleMesh: THREE.Mesh;
     private gui: lil.GUI;
+
+    private showAttractors: boolean = true;
+    private showSamplingMesh: boolean = true;
 
     constructor(private engine: Engine) {
         this.coralGenerator = new CoralGenerator();
         this.generatorMeshes = [];
         this.gui = new lil.GUI();
+
     }
 
     init() {
@@ -38,26 +42,19 @@ export class GeneratorScene implements Experience {
 
         this.engine.scene.add(directionalLight)
 
-        this.coralGenerator.attractors.forEach(attractor => {
-            // Create a small red sphere for each attractor
-            let sphere = new THREE.Mesh(new THREE.SphereGeometry(0.05, 6, 6), new THREE.MeshStandardMaterial({ color: 0xff0000 }));
-            sphere.position.copy(attractor);
-            sphere.castShadow = true;
-            sphere.receiveShadow = true;
-            this.attractorMeshes.push(sphere);
-            this.engine.scene.add(sphere);
-        });
-
         // Create skybox
         this.createSkybox();
 
         // Create coral generator GUI
+        this.gui.add(this, 'showAttractors').name('Show Attractors');
+        this.gui.add(this, 'showSamplingMesh').name('Show Sampling Mesh');
         this.coralGenerator.CreateGUI(this.gui);
+
     }
 
     resize() {}
 
-    update(delta: number) {
+    update(delta: number) {        
         this.coralGenerator.update(delta);
 
         if (this.coralMesh) {
@@ -69,28 +66,34 @@ export class GeneratorScene implements Experience {
         this.engine.scene.add(this.coralMesh);
 
         // Remove all attractor meshes
-        this.attractorMeshes.forEach((mesh) => {
-            this.engine.scene.remove(mesh);
-            mesh.geometry.dispose();
-        });
+        if (this.attractorMeshes) {
+            this.attractorMeshes.geometry.dispose();
+            this.engine.scene.remove(this.attractorMeshes);
+        }
+        if (this.showAttractors) {
+            // Create a small red sphere for each attractor
+            let geometry = new THREE.SphereGeometry(0.05, 6, 6);
+            let material = new THREE.MeshStandardMaterial({ color: 0xff0000 });
+            this.attractorMeshes = new THREE.InstancedMesh(geometry, material, this.coralGenerator.attractors.length);
 
-        // Create a small red sphere for each attractor
-        this.attractorMeshes = [];
-        this.coralGenerator.attractors.forEach(attractor => {
-            let sphere = new THREE.Mesh(new THREE.SphereGeometry(0.05, 4, 4), new THREE.MeshStandardMaterial({ color: 0xff0000 }));
-            sphere.position.copy(attractor);
-            sphere.castShadow = true;
-            sphere.receiveShadow = true;
-            this.attractorMeshes.push(sphere);
-            this.engine.scene.add(sphere);
-        });
+            let matrix = new THREE.Matrix4();
+
+            this.coralGenerator.attractors.forEach((attractor, i) => {
+                // Set matrix based on attractor position
+                matrix.makeTranslation(attractor.x, attractor.y, attractor.z);
+                this.attractorMeshes.setMatrixAt(i, matrix);
+            });
+
+            this.engine.scene.add(this.attractorMeshes);
+        }
+
+        if (this.sampleMesh) {
+            this.engine.scene.remove(this.sampleMesh);
+            this.sampleMesh.geometry.dispose();
+        }
 
         // Draw attractor reference mesh
-        if (!this.sampleMesh || this.sampleMesh.geometry.parameters.radius != this.coralGenerator.attractorRadius) {
-            if (this.sampleMesh) {
-                this.engine.scene.remove(this.sampleMesh);
-                this.sampleMesh.geometry.dispose();
-            }
+        if (this.showSamplingMesh) {
             this.sampleMesh = new THREE.Mesh(
                 new THREE.SphereGeometry(this.coralGenerator.attractorRadius, 60, 60, 0, 2*Math.PI, 0, Math.PI/2), 
                 new THREE.MeshStandardMaterial({ color: 0x00ff00, wireframe: true, transparent: true, opacity: 0.1 }));
