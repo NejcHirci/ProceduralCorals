@@ -95,9 +95,7 @@ export class GeneratorScene implements Experience {
 
         // Draw attractor reference mesh
         if (this.showSamplingMesh) {
-            this.sampleMesh = new THREE.Mesh(
-                new THREE.SphereGeometry(this.coralGenerator.attractorRadius, 60, 60, 0, 2*Math.PI, 0, Math.PI/2), 
-                new THREE.MeshStandardMaterial({ color: 0x00ff00, wireframe: true, transparent: true, opacity: 0.1 }));
+            this.sampleMesh = this.coralGenerator.attractorShape.GetMesh();
             this.sampleMesh.castShadow = false;
             this.sampleMesh.receiveShadow = false;
             this.engine.scene.add(this.sampleMesh);

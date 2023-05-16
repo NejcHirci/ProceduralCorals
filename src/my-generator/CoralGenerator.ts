@@ -9,8 +9,7 @@ enum AttractorShape {
     Hemisphere,
     Cone,
     Cylinder,
-    Cuboid,
-    Torus,
+    Cuboid
 }
 
 export class CoralGenerator {
@@ -19,19 +18,18 @@ export class CoralGenerator {
     public attractorCount: number = 100;
     public attractorStrength: number = 1.0;
     public attractorKillRange: number = 0.1;
-    public attractorRadius: number = 3;
     public attractorFood: number = 0.5;
 
     // Sampling parameters
-    public attractorShape: SamplingShape = SamplingShape.Sphere;
+    public attractorShape: SamplingShape;;
 
     // Growth parameters
     public startPosition: THREE.Vector3 = new THREE.Vector3(0, 0, 0);
-    public branchLength: number = 0.05;
-    public timeBetweenIterations: number = 0.1;
+    public branchLength: number = 0.1;
+    public timeBetweenIterations: number = 0.5;
     public randomGrowth: number = 0.5;
     public branchingProbability: number = 0.000000001;
-    public maxBranchingAngle: number = 0.5;
+    public maxBranchingAngle: number = Math.PI / 2;
     public minEnergy: number = 0.01;
 
     // Geometry parameters
@@ -51,47 +49,30 @@ export class CoralGenerator {
     public environment: Environment;
 
     constructor() {
-        this.GenerateAttractors();
         this.geometry = new THREE.BufferGeometry();
         this.environment = new Environment();
+        this.attractorShape = new SamplingShape(AttractorShape.Sphere, this.Reset.bind(this));
         this.init();
     }
 
     init() {
+        this.GenerateAttractors();
+
         let closestAttr = null;
         let closestDist = 1000;
-
-        // Generate k first branches based on attractors
-        this.attractors.every((attractor) => {
+        this.attractors.forEach((attractor) => {
             let dist = attractor.distanceTo(this.startPosition);
-            if (dist < this.attractorStrength * 3.0) {
-                let start = this.startPosition.clone();
-                
-                let direction = attractor.clone().sub(this.startPosition);
-                direction.add(Utils.RandomInHemisphere(this.randomGrowth));                
-                direction.add(this.environment.CalculateSeaCurrentImpact());
-
-                direction.normalize();
-                direction.multiplyScalar(this.branchLength);
-
-                let end = start.clone().add(direction);
-                let branch = new Branch(start, end, direction, null, this.extremitiesSize, 1.0);
-                this.branches.push(branch);
-            }
             if (dist < closestDist) {
                 closestDist = dist;
                 closestAttr = attractor;
             }
-            if (this.branches.length > 10) return false;
-            return true;
         });
 
-        if (this.branches.length == 0) {
-            let direction = closestAttr.clone().sub(this.startPosition);
-            direction.normalize();
-            let branch = new Branch(this.startPosition, direction.multiplyScalar(this.branchLength), direction, null, this.extremitiesSize, 1.0);
-            this.branches.push(branch);
-        }
+        // Generate k first branches based on attractors
+        let direction = closestAttr.clone().sub(this.startPosition);
+        direction.normalize();
+        let branch = new Branch(this.startPosition, direction.multiplyScalar(this.branchLength), direction, null, this.extremitiesSize, 1.0);
+        this.branches.push(branch);
     }
 
     update(delta: number) {
@@ -127,15 +108,14 @@ export class CoralGenerator {
         this.attractors = [];
         this.activeAttractors = [];
         for (let i = 0; i < this.attractorCount; i++) {
-            let attractor = Utils.RandomInHemisphere(this.attractorRadius);
+            let attractor = this.attractorShape.SampleShape();
             this.attractors.push(attractor);
         }
         this.numRemainingAttractors = this.attractors.length;
     }
 
-    GenerateMeshFromVerts() {
+    GenerateMeshFromVerts2() {
         let vertices = new Float32Array((this.branches.length + 1) * this.radialSegments * 3);
-        let indices = new Uint32Array(this.branches.length * this.radialSegments * 6);
 
         // Construct vertices
         for (let i = 0; i < this.branches.length; i++) {
@@ -178,6 +158,63 @@ export class CoralGenerator {
             }
         }
 
+        // Create Geometry
+        let geometry = new THREE.BufferGeometry();
+        geometry.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
+
+        let triangles = THREE.ShapeUtils.triangulateShape(vertices, []);
+        
+
+
+
+    }
+
+    GenerateMeshFromVerts() {
+        let vertices = new Float32Array((this.branches.length + 1) * this.radialSegments * 3);
+        let indices = new Uint32Array(this.branches.length * this.radialSegments * 6);
+
+        // Construct vertices
+        for (let i = 0; i < this.branches.length; i++) {
+            this.branches[i].verticesId = i * this.radialSegments;
+
+            // Quaternion rotation to align branch with its direction
+            let quaternion = new THREE.Quaternion();
+            let dir = this.branches[i].direction.clone();
+            let norm = new THREE.Vector3(0, 1, 0);
+            dir.normalize();
+
+            // Check if same hemisphere
+            quaternion.setFromAxisAngle
+            quaternion.setFromUnitVectors(norm, dir);
+
+            for (let s = 0; s < this.radialSegments; s++) {
+                let angle = s * 2 * Math.PI / this.radialSegments;
+
+                if (dir.dot(norm) < 0) {
+                    //angle -= Math.PI / 2;
+                }
+                
+                let x = Math.cos(angle);
+                let y = Math.sin(angle);
+                let radius = this.branches[i].GetRadius(new THREE.Vector3(x, 0, y));
+                radius += this.environment.CalculateTemperatureImpact(this.branches[i].end, this.attractors);
+                let vertex = new THREE.Vector3(x * radius, 0, y * radius);
+                vertex.applyQuaternion(quaternion)
+                vertex.add(this.branches[i].end);
+                vertex.sub(this.startPosition);
+                
+                vertices[i * this.radialSegments * 3 + s * 3] = vertex.x;
+                vertices[i * this.radialSegments * 3 + s * 3 + 1] = vertex.y;
+                vertices[i * this.radialSegments * 3 + s * 3 + 2] = vertex.z;
+
+                if (this.branches[i].parent == null) {
+                    vertices[this.branches.length * this.radialSegments * 3 + s * 3] = this.branches[i].start.x + Math.cos(angle) * this.branches[i].size;
+                    vertices[this.branches.length * this.radialSegments * 3 + s * 3 + 1] = this.branches[i].start.y;
+                    vertices[this.branches.length * this.radialSegments * 3 + s * 3 + 2] = this.branches[i].start.z + Math.sin(angle) * this.branches[i].size;
+                }
+            }
+        }
+
         for (let i = 0; i < this.branches.length; i++) {
             let fid = i * this.radialSegments * 6;
             let bid = this.branches[i].parent != null ? this.branches[i].parent.verticesId : this.branches.length * this.radialSegments;
@@ -205,8 +242,6 @@ export class CoralGenerator {
         geometry.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
         geometry.setIndex(new THREE.BufferAttribute(indices, 1));
         geometry.computeVertexNormals();
-        
-        //geometry = BufferGeometryUtils.mergeVertices(geometry);
 
         const material = new THREE.MeshPhongMaterial({color: 0xff4c00, side: THREE.DoubleSide, wireframe: false});
         const mesh = new THREE.Mesh(geometry, material);
@@ -263,12 +298,12 @@ export class CoralGenerator {
         const attractorFolder = gui.addFolder('Attractors');
         attractorFolder.open();
         attractorFolder.add(this, 'attractorCount', 0, 10000, 1).name("Count").onChange(() => { this.Reset() });
-        attractorFolder.add(this, 'attractorRadius', 0, 10, 0.1).name("Sample Radius").onChange(() => { this.Reset() });
         attractorFolder.add(this, 'attractorStrength', 0, 10, 0.1).name("Influence Radius").onChange(() => { this.Reset() });
         attractorFolder.add(this, "attractorKillRange", 0, 10, 0.1).name("Kill Radius").onChange(() => { this.Reset() });
         attractorFolder.add(this, "attractorFood", 0, 2, 0.1).name("Food").onChange(() => { this.Reset() });
-
-
+        
+        // Create Sample folder
+        this.attractorShape.updateGUI(attractorFolder);
 
         this.environment.CreateEnvGui(gui, this.Reset.bind(this));
     }
@@ -330,27 +365,34 @@ export class CoralGenerator {
                     });
                     avgAttractor.divideScalar(branch.attractors.length);
 
-                    // Grow initial branch
-                    let newBranch = this.GrowBranch(branch, avgAttractor);
-                    branch.energy *= 0.75;
-                    newBranches.push(newBranch);
-                    // Add new branch to children
-                    branch.children.push(newBranch);
-                    // Add new branch to extremities list
-                    this.extremities.push(newBranch);
+                    // Check if avgAttractor direction angle is within the branch angle
+                    let angle = branch.end.clone().sub(branch.start).angleTo(avgAttractor.clone().sub(branch.end));
+                    if (angle < this.maxBranchingAngle) {
+                        // Grow initial branch
+                        let newBranch = this.GrowBranch(branch, avgAttractor);
+                        branch.energy *= 0.75;
+                        newBranches.push(newBranch);
+                        // Add new branch to children
+                        branch.children.push(newBranch);
+                        // Add new branch to extremities list
+                        this.extremities.push(newBranch);
+                    }
 
                     // Grow additional branches in direction of other attractors with decreasing probability
                     let prob = this.branchingProbability;
                     for (let i=1; i < branch.attractors.length; i++) {
                         if (Math.random() < prob && branch.energy > this.minEnergy) {
-                            let newBranch = this.GrowBranch(branch, branch.attractors[i]);
-                            branch.energy *= 0.75;
-                            newBranches.push(newBranch);
-                            // Add new branch to children
-                            branch.children.push(newBranch);
-                            // Add new branch to extremities list
-                            this.extremities.push(newBranch);
-                            prob *= this.branchingProbability;
+                            let angle = branch.direction.clone().angleTo(branch.attractors[i].clone().sub(branch.end));
+                            if (angle < this.maxBranchingAngle) {
+                                let newBranch = this.GrowBranch(branch, branch.attractors[i]);
+                                branch.energy *= 0.75;
+                                newBranches.push(newBranch);
+                                // Add new branch to children
+                                branch.children.push(newBranch);
+                                // Add new branch to extremities list
+                                this.extremities.push(newBranch);
+                                prob *= this.branchingProbability;
+                            }
                         }
                     }
                 }
@@ -413,20 +455,6 @@ export class CoralGenerator {
         return newBranch;
     }
 
-
-    private SampleShape() {
-        switch (this.attractorShape) {
-            case SamplingShape.Sphere:
-                return Utils.RandomInSphere(this.shapeProperties);
-            case SamplingShape.Cuboid:
-                return Utils.RandomInCube(this.shapeSize);
-            case SamplingShape.Cone:
-                return Utils.RandomInCone(this.shapeSize);
-            case SamplingShape.Cylinder:
-                return Utils.RandomInCylinder(this.shapeSize);
-        }
-    }
-
     private CreateObstacleMesh() {
         let geometry = new THREE.SphereGeometry( 0.5, 32, 32 );
         let material = new THREE.MeshBasicMaterial( {color: 0xffff00} );
@@ -448,7 +476,8 @@ class Branch {
     public energy : number;
 
     constructor(
-            start : THREE.Vector3, end : THREE.Vector3, direction : THREE.Vector3, 
+            start : THREE.Vector3, end : THREE.Vector3, 
+            direction : THREE.Vector3, 
             parent : Branch | null =null, 
             size : number = 0.05,
             energy : number = 1) {
@@ -579,40 +608,67 @@ class SamplingShape {
     private width : number = 1;
     private depth : number = 1;
     private normal : THREE.Vector3 = new THREE.Vector3(0, 1, 0);
-    
-
 
     constructor(shapeType : AttractorShape, reset : () => void) {
         this.reset = reset;
         this.shapeType = shapeType;
     }
 
-    updateGUI(gui : lil.GUI, reset : () => void) {
+    updateGUI(gui : lil.GUI) {
         let folder = gui.addFolder("Sampling Shape");
-        folder.add(this, "shapeType", AttractorShape.Sphere, AttractorShape.Hemisphere, 1).onChange(reset);
-        folder.add(this, "radius", 0, 1, 0.01).onChange(reset);
-        folder.add(this, "height", 0, 1, 0.01).onChange(reset);
-        folder.add(this, "width", 0, 1, 0.01).onChange(reset);
-        folder.add(this, "depth", 0, 1, 0.01).onChange(reset);
-        folder.add(this.normal, "x", -1, 1, 0.01).onChange(reset);
-        folder.add(this.normal, "y", -1, 1, 0.01).onChange(reset);
-        folder.add(this.normal, "z", -1, 1, 0.01).onChange(reset);
+        folder.add(this, "shapeType", 
+        {Hemisphere: AttractorShape.Hemisphere, Sphere: AttractorShape.Sphere, Cuboid: AttractorShape.Cuboid, 
+            Cone: AttractorShape.Cone, Cylinder: AttractorShape.Cylinder}).name("Shape").onChange(this.reset);
+        folder.add(this, "radius", 0, 5, 0.01).onChange(this.reset);
+        folder.add(this, "height", 0, 5, 0.01).onChange(this.reset);
+        folder.add(this, "width", 0, 5, 0.01).onChange(this.reset);
+        folder.add(this, "depth", 0, 5, 0.01).onChange(this.reset);
+        folder.add(this.normal, "x", -1, 1, 0.01).onChange(this.reset);
+        folder.add(this.normal, "y", -1, 1, 0.01).onChange(this.reset);
+        folder.add(this.normal, "z", -1, 1, 0.01).onChange(this.reset);
     }
 
     public SampleShape() {
         switch (this.shapeType) {
             case AttractorShape.Sphere:
-                return Utils.RandomInSphere(this.radius);
+                return Utils.RandomInSphere(this.radius).add(new THREE.Vector3(0, this.radius, 0));
             case AttractorShape.Hemisphere:
-                return Utils.RandomInHemisphere(this.radius);
+                return Utils.RandomInHemisphere(this.radius)
             case AttractorShape.Cuboid:
-                return Utils.RandomInCuboid(this.width, this.height, this.depth);
+                return Utils.RandomInCuboid(this.width, this.height, this.depth).add(new THREE.Vector3(0, this.height/2, 0));
             case AttractorShape.Cone:
                 return Utils.RandomInCone(this.radius, this.height, this.normal);
             case AttractorShape.Cylinder:
                 return Utils.RandomInCylinder(this.radius, this.height, this.normal);
         }
         return new THREE.Vector3(0, 0, 0);
+    }
+
+    public GetMesh() {
+        let material = new THREE.MeshBasicMaterial({color: 0x00ff00, wireframe: true});
+        let mesh : THREE.Mesh;
+        switch (this.shapeType) {
+            case AttractorShape.Sphere:
+                mesh = new THREE.Mesh(new THREE.SphereGeometry(this.radius, 32, 32), material);
+                mesh.position.y = this.radius;
+                break;
+            case AttractorShape.Hemisphere:
+                mesh = new THREE.Mesh(new THREE.SphereGeometry(this.radius, 32, 32, 0, Math.PI), material);
+                break;
+            case AttractorShape.Cuboid:
+                mesh = new THREE.Mesh(new THREE.BoxGeometry(this.width, this.height, this.depth), material);
+                mesh.position.y = this.height/2;
+                break;
+            case AttractorShape.Cone:
+                mesh = new THREE.Mesh(new THREE.ConeGeometry(this.radius, this.height, 32), material);
+                mesh.position.y = this.height/2;
+                break;
+            case AttractorShape.Cylinder:
+                mesh = new THREE.Mesh(new THREE.CylinderGeometry(this.radius, this.radius, this.height, 32), material);
+                mesh.position.y = this.height/2;
+                break;
+        }
+        return mesh;
     }
 
 }

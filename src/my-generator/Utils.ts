@@ -46,11 +46,11 @@ export function RandomInCuboid(x:number, y:number, z:number) {
 export function RandomInCone(radius: number, h: number, normal: THREE.Vector3) {
     let eps1 = Math.random();
     let eps2 = Math.random();
-    let theta = 2 * Math.PI * u;
-    let r = Math.sqrt(v);
+    let theta = 2 * Math.PI * eps1;
+    let r = Math.sqrt(eps2);
     let x = r * Math.cos(theta);
-    let y = r * Math.sin(theta);
-    let z = 1 - v;
+    let z = r * Math.sin(theta);
+    let y = 1 - eps2;
 
     let v = new THREE.Vector3(x, y, z);
     let quaternion = new THREE.Quaternion();
@@ -68,8 +68,8 @@ export function RandomInCylinder(radius : number, h : number, normal : THREE.Vec
     let theta = 2 * Math.PI * eps1;
     let r = radius * Math.sqrt(eps2);
     let x = r * Math.cos(theta);
-    let y = r * Math.sin(theta);
-    let z = h * eps3;
+    let z = r * Math.sin(theta);
+    let y = h * eps3;
 
     let v = new THREE.Vector3(x, y, z);
     let quaternion = new THREE.Quaternion();
