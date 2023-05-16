@@ -10,12 +10,13 @@ export class GeneratorScene implements Experience {
     private coralGenerator: CoralGenerator;
     private generatorMeshes: THREE.Mesh[];
     private coralMesh: THREE.Mesh | THREE.LineSegments;
-    private attractorMeshes: THREE.InstancedMesh;
+    private attractorMeshes: THREE.Points;
     private sampleMesh: THREE.Mesh;
     private gui: lil.GUI;
 
     private showAttractors: boolean = true;
     private showSamplingMesh: boolean = true;
+    private toggleLineOrMesh: boolean = true;
 
     constructor(private engine: Engine) {
         this.coralGenerator = new CoralGenerator();
@@ -48,6 +49,7 @@ export class GeneratorScene implements Experience {
         // Create coral generator GUI
         this.gui.add(this, 'showAttractors').name('Show Attractors');
         this.gui.add(this, 'showSamplingMesh').name('Show Sampling Mesh');
+        this.gui.add(this, 'toggleLineOrMesh').name('Toggle Line/Mesh');
         this.coralGenerator.CreateGUI(this.gui);
 
     }
@@ -62,7 +64,11 @@ export class GeneratorScene implements Experience {
             this.coralMesh.geometry.dispose();
         }
 
-        this.coralMesh = this.coralGenerator.GenerateMeshFromVerts();
+        if (this.toggleLineOrMesh) {
+            this.coralMesh = this.coralGenerator.GenerateMeshFromVerts();
+        } else {
+            this.coralMesh = this.coralGenerator.GenerateLineFromVerts();
+        }
         this.engine.scene.add(this.coralMesh);
 
         // Remove all attractor meshes
@@ -72,17 +78,12 @@ export class GeneratorScene implements Experience {
         }
         if (this.showAttractors) {
             // Create a small red sphere for each attractor
-            let geometry = new THREE.SphereGeometry(0.05, 6, 6);
-            let material = new THREE.MeshStandardMaterial({ color: 0xff0000 });
-            this.attractorMeshes = new THREE.InstancedMesh(geometry, material, this.coralGenerator.attractors.length);
-
-            let matrix = new THREE.Matrix4();
-
-            this.coralGenerator.attractors.forEach((attractor, i) => {
-                // Set matrix based on attractor position
-                matrix.makeTranslation(attractor.x, attractor.y, attractor.z);
-                this.attractorMeshes.setMatrixAt(i, matrix);
-            });
+            let geometry = new THREE.BufferGeometry();
+            let vertices = new Float32Array(this.coralGenerator.attractors.length * 3);
+            vertices.set(this.coralGenerator.attractors.map(a => [a.x, a.y, a.z]).flat());
+            geometry.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
+            let material = new THREE.PointsMaterial({ color: 0xff0000, size: 0.05, opacity: 0.5, transparent: true });
+            this.attractorMeshes = new THREE.Points(geometry, material);
 
             this.engine.scene.add(this.attractorMeshes);
         }

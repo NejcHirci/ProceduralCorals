@@ -32,7 +32,7 @@ export class CoralGenerator {
     public randomGrowth: number = 0.5;
     public branchingProbability: number = 0.000000001;
     public maxBranchingAngle: number = 0.5;
-    public minEnergy: number = 0.001;
+    public minEnergy: number = 0.01;
 
     // Geometry parameters
     public radialSegments: number = 12;
@@ -146,7 +146,11 @@ export class CoralGenerator {
             let dir = this.branches[i].direction.clone();
             let norm = new THREE.Vector3(0, 1, 0);
             dir.normalize();
+
             // Check if same hemisphere
+            if (dir.dot(norm) < 0) {
+                norm = new THREE.Vector3(0, -1, 0);
+            }
             quaternion.setFromUnitVectors(norm, this.branches[i].direction);
 
             for (let s = 0; s < this.radialSegments; s++) {
@@ -202,7 +206,7 @@ export class CoralGenerator {
         geometry.setIndex(new THREE.BufferAttribute(indices, 1));
         geometry.computeVertexNormals();
         
-        geometry = BufferGeometryUtils.mergeVertices(geometry);
+        //geometry = BufferGeometryUtils.mergeVertices(geometry);
 
         const material = new THREE.MeshPhongMaterial({color: 0xff4c00, side: THREE.DoubleSide, wireframe: false});
         const mesh = new THREE.Mesh(geometry, material);
@@ -233,11 +237,24 @@ export class CoralGenerator {
     }
 
     GenerateTubeFromVerts() {
-        let curve = new THREE.CatmullRomCurve3(this.branches.map(branch => branch.end));
-        let geometry = new THREE.TubeGeometry(curve, this.branches.length * 10, 0.1, 8, false);
-        let material = new THREE.MeshPhongMaterial({color: 0xff0000});
-        let mesh = new THREE.Mesh(geometry, material);
-        return mesh;
+        let tubeSegments:THREE.TubeGeometry[] = [];
+        this.branches.forEach(branch => {
+            let points = [branch.start, branch.end]
+            let geometry = new THREE.TubeGeometry(new THREE.CatmullRomCurve3(points), 64, 0.1, 8, false);
+            tubeSegments.push(geometry);
+        });
+        // Construct missing tubes between parent and child
+        for (let i = 0; i < this.branches.length; i++) {
+            if (this.branches[i].parent != null) {
+                let points = [this.branches[i].parent.end, this.branches[i].start]
+                let geometry = new THREE.TubeGeometry(new THREE.CatmullRomCurve3(points), 64, 0.1, 8, false);
+                tubeSegments.push(geometry);
+            }
+        }
+        let meshGeometry = BufferGeometryUtils.mergeBufferGeometries(tubeSegments);
+        let material = new THREE.MeshPhongMaterial({color: 0xff0000, side: THREE.DoubleSide, wireframe: false});
+        let mesh = new THREE.Mesh(meshGeometry, material);
+        return mesh;    
     }
 
 
@@ -305,8 +322,16 @@ export class CoralGenerator {
                 if (branch.attractors.length > 0 && branch.energy > this.minEnergy) {
                     // Sort branch attractors by distance
                     branch.attractors.sort((a, b) => { return branch.end.distanceTo(a) - branch.end.distanceTo(b) });
+
+                    // Get average attractor position
+                    let avgAttractor = new THREE.Vector3();
+                    branch.attractors.forEach((attractor) => {
+                        avgAttractor.add(attractor);
+                    });
+                    avgAttractor.divideScalar(branch.attractors.length);
+
                     // Grow initial branch
-                    let newBranch = this.GrowBranch(branch, branch.attractors[0]);
+                    let newBranch = this.GrowBranch(branch, avgAttractor);
                     branch.energy *= 0.75;
                     newBranches.push(newBranch);
                     // Add new branch to children
@@ -370,7 +395,7 @@ export class CoralGenerator {
         newDirection.multiplyScalar(this.branchLength);
 
         // Smoothen direction with parent direction
-        let smoothingFactor = 0.1;
+        let smoothingFactor = 0.5;
         let parentDirection = branch.direction.clone();
         parentDirection.multiplyScalar(smoothingFactor);
         newDirection.normalize();
