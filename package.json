@@ -7,7 +7,7 @@
   "author": "Nejc Hirci",
   "license": "MIT",
   "scripts": {
-    "dev": "vite",
+    "dev": "vite --port 4000",
     "build": "tsc && vite build",
     "preview": "vite preview",
     "cleanup": "node ./scripts/cleanup.js",
