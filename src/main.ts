@@ -1,13 +1,14 @@
 import './style.scss'
 import { Engine } from './engine/Engine'
-import { Experience } from './engine/Experience'
+import { GeneratorScene } from './my-generator/GeneratorScene'
 
 new Engine({
   canvas: document.querySelector('#canvas') as HTMLCanvasElement,
-  experience: class implements Experience {
-    resources = []
-    init() {}
-    update() {}
-    resize() {}
-  }
+  experience: GeneratorScene,
+  info: {
+    github: 'https://github.com/NejcHirci/ProceduralCorals',
+    description: 'A modified space colonization algorithm for generating coral-like structures.',
+    documentTitle: 'Procedural Corals',
+    title: 'Procedural Corals',
+  },
 })

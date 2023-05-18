@@ -11,11 +11,9 @@
     "dev": "vite --port 4000",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "cleanup": "node ./scripts/cleanup.js",
     "prepare": "husky install",
     "preinstall": "git submodule update --init --recursive",
-    "predeploy": "npm run cleanup && npm run build",
-    "deploy": "gh-pages -d dist"
+    "predeploy": "npm run build"
   },
   "type": "module",
   "dependencies": {
