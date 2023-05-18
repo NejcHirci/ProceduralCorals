@@ -3,9 +3,7 @@ import * as THREE from 'three';
 import { GLTFExporter } from 'three/examples/jsm/exporters/GLTFExporter.js';
 
 // We use this class for both remeshing and exporting the mesh
-export class MeshExporter {
-
-    public static exportMesh(model: THREE.Mesh, filename: string) {
+export function exportMesh(model: THREE.Mesh, filename: string) {
         const exporter = new GLTFExporter();
 
         exporter.parse(
@@ -20,12 +18,6 @@ export class MeshExporter {
                 console.error( error );
             }
         )
-    }
-
-    public static optimizeMesh(mesh: THREE.BufferGeometry) {
-
-    }
-
 }
 
 function download(blob : Blob, filename : string) {

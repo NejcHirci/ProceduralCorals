@@ -12,11 +12,13 @@ export class GeneratorScene implements Experience {
   private coralMesh: THREE.Mesh | THREE.LineSegments
   private attractorMeshes: THREE.Points
   private sampleMesh: THREE.Mesh
+  private obstacleMesh: THREE.Mesh
   private gui: lil.GUI
 
   private showAttractors: boolean = true
   private showSamplingMesh: boolean = true
   private toggleLineOrMesh: boolean = true
+  private showObstacleMesh: boolean = true
 
   constructor(private engine: Engine) {
     this.coralGenerator = new CoralGenerator()
@@ -53,6 +55,7 @@ export class GeneratorScene implements Experience {
     this.gui.add(this, 'showAttractors').name('Show Attractors')
     this.gui.add(this, 'showSamplingMesh').name('Show Sampling Mesh')
     this.gui.add(this, 'toggleLineOrMesh').name('Toggle Line/Mesh')
+    this.gui.add(this, 'showObstacleMesh').name('Show Obstacle Mesh');
     this.coralGenerator.CreateGUI(this.gui)
   }
 
@@ -108,14 +111,26 @@ export class GeneratorScene implements Experience {
         this.sampleMesh.geometry.dispose()
       }
 
-        // Draw attractor reference mesh
-        if (this.showSamplingMesh) {
-            this.sampleMesh = this.coralGenerator.attractorShape.GetMesh();
-            this.sampleMesh.castShadow = false;
-            this.sampleMesh.receiveShadow = false;
-            this.engine.scene.add(this.sampleMesh);
-        }
+      if (this.showSamplingMesh) {
+          this.sampleMesh = this.coralGenerator.attractorShape.GetMesh();
+          this.sampleMesh.castShadow = false;
+          this.sampleMesh.receiveShadow = false;
+          this.engine.scene.add(this.sampleMesh);
+      }
+
+      if (this.obstacleMesh) {
+        this.engine.scene.remove(this.obstacleMesh)
+        this.obstacleMesh.geometry.dispose()
+      }
+
+      if (this.showObstacleMesh) {
+        this.obstacleMesh = this.coralGenerator.obstacleMesh.GetMesh();
+        this.obstacleMesh.castShadow = false;
+        this.obstacleMesh.receiveShadow = false;
+        this.engine.scene.add(this.obstacleMesh);
+      }
     }
+  }
 
   createSkybox() {
     let texture = new THREE.TextureLoader().load('assets/textures/skybox.jpg')
