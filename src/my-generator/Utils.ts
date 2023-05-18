@@ -88,7 +88,6 @@ export function RandomInCone(radius: number, height: number, normal: THREE.Vecto
 export function RandomInCylinder(radius : number, h : number, normal : THREE.Vector3) {
     let eps1 = Math.random();
     let eps2 = Math.random();
-    let eps3 = Math.random();
 
     // Get angle from radius and height
     let angle = Math.atan(radius / h);

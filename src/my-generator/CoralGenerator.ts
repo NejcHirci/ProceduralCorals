@@ -73,6 +73,8 @@ export class CoralGenerator {
       }
     });
 
+    if (closestAttr == null) { closestAttr = new THREE.Vector3(0, 0, 0); }
+
     // Generate k first branches based on attractors
     let direction = closestAttr.clone().sub(this.startPosition);
     direction.normalize();
@@ -89,7 +91,6 @@ export class CoralGenerator {
       this.extremities = this.branches.filter(
         (branch) => branch.children.length == 0
       )
-      this.extremities.forEach((extrem) => (extrem.grown = true))
 
       // Remove attractors in kill range and add energy to branches
       for (let i = this.attractors.length - 1; i >= 0; i--) {
@@ -188,7 +189,11 @@ export class CoralGenerator {
 
     for (let i = 0; i < this.branches.length; i++) {
       let fid = i * this.radialSegments * 6;
-      let bid = this.branches[i].parent != null ? this.branches[i].parent.verticesId : this.branches.length * this.radialSegments;
+
+      let bid = this.branches.length * this.radialSegments;
+      if (this.branches[i].parent != null) {
+        bid = this.branches[i].parent!.verticesId;
+      }
       let tid = this.branches[i].verticesId;
 
       for (let s = 0; s < this.radialSegments; s++) {
@@ -276,7 +281,7 @@ export class CoralGenerator {
     // Construct missing tubes between parent and child
     for (let i = 0; i < this.branches.length; i++) {
       if (this.branches[i].parent != null) {
-        let points = [this.branches[i].parent.end, this.branches[i].start]
+        let points = [this.branches[i].parent!.end, this.branches[i].start]
         let geometry = new THREE.TubeGeometry(
           new THREE.CatmullRomCurve3(points),
           64,
@@ -351,19 +356,19 @@ export class CoralGenerator {
 
     // Associate each attractor with a branch
     this.attractors.forEach((attractor, index) => {
-      let minDist = Infinity
-      let minBranch: Branch | undefined = undefined
+      let minDist = Infinity;
+      let minBranch:any = null;
       this.branches.forEach((branch) => {
         let dist = branch.end.distanceTo(attractor)
         if (dist < minDist && dist < this.attractorStrength) {
-          minDist = dist
-          minBranch = branch
+          minDist = dist;
+          minBranch = branch;
         }
-      })
+      });
 
       if (minBranch != null) {
-        minBranch.attractors.push(attractor)
-        this.activeAttractors.push(index)
+        minBranch!.attractors.push(attractor);
+        this.activeAttractors.push(index);
       }
     })
 
@@ -504,7 +509,7 @@ class Branch {
   public parent: Branch | null
   public size: number
   public children: Branch[] = []
-  public attractors: THREE.Vector3[] = []
+  public attractors: THREE.Vector3[]
   public verticesId: number = 0
 
   // Remaining energy
@@ -523,6 +528,8 @@ class Branch {
     this.parent = parent;
     this.size = size;
     this.energy = energy;
+    this.verticesId = 0;
+    this.attractors = [];
   }
 
   GetRadius(dir: THREE.Vector3) {
@@ -531,13 +538,11 @@ class Branch {
       return this.size
     }
     // Find child with the closest direction to the given x, y
-    let closestChild = null
     let closestAngle = 1000
     for (let i = 0; i < this.children.length; i++) {
       let angle = dir.angleTo(this.children[i].direction)
       if (angle < closestAngle) {
-        closestAngle = angle
-        closestChild = this.children[i]
+        closestAngle = angle;
       }
     }
     let radius = this.size + closestAngle * 0.05
@@ -592,18 +597,6 @@ class Environment {
 
     // Multiply by depth
     return direction
-  }
-
-  CalculateGravityImpact() { }
-
-  CalculateLightImpact(position: THREE.Vector3) {
-    /**
-     * Light should also decrease with depth, but most importantly,
-     * check if there is occlusion from position to light.
-     *
-     * if there is occlusion, search for the closest point to the light
-     * that is not occluded, and use that as the growth direction
-     */
   }
 
   CalculateTemperatureImpact(
@@ -766,7 +759,7 @@ class ObstacleMesh {
       case AttractorShape.Sphere:
         return p.distanceTo(this.position) < this.radius + r;
       case AttractorShape.Hemisphere:
-        return p.distanceTo(this.position) < this.radius + r && p.dot(this.normal) > 0;
+        return p.distanceTo(this.position) < this.radius + r && p.dot(new THREE.Vector3(0.0, 1.0, 0.0)) > 0;
       case AttractorShape.Cuboid:
         let v = p.clone().sub(this.position);
         let x = v.dot(new THREE.Vector3(1, 0, 0));

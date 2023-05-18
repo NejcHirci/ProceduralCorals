@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "description": "Procedural Corals in Three.js",
   "main": "index.html",
+  "homepage": "https://nejchirci.github.io/ProceduralCorals/",
   "repository": "https://github.com/NejcHirci/ProceduralCorals",
   "author": "Nejc Hirci",
   "license": "MIT",
@@ -12,7 +13,9 @@
     "preview": "vite preview",
     "cleanup": "node ./scripts/cleanup.js",
     "prepare": "husky install",
-    "preinstall": "git submodule update --init --recursive"
+    "preinstall": "git submodule update --init --recursive",
+    "predeploy": "npm run cleanup && npm run build",
+    "deploy": "gh-pages -d dist"
   },
   "type": "module",
   "dependencies": {

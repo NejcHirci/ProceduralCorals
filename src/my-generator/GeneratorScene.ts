@@ -8,11 +8,10 @@ import { CoralGenerator } from './CoralGenerator'
 export class GeneratorScene implements Experience {
   resources: Resource[] = []
   private coralGenerator: CoralGenerator
-  private generatorMeshes: THREE.Mesh[]
-  private coralMesh: THREE.Mesh | THREE.LineSegments
-  private attractorMeshes: THREE.Points
-  private sampleMesh: THREE.Mesh
-  private obstacleMesh: THREE.Mesh
+  private coralMesh?: THREE.Mesh | THREE.LineSegments
+  private attractorMeshes?: THREE.Points
+  private sampleMesh?: THREE.Mesh
+  private obstacleMesh?: THREE.Mesh 
   private gui: lil.GUI
 
   private showAttractors: boolean = true
@@ -22,7 +21,6 @@ export class GeneratorScene implements Experience {
 
   constructor(private engine: Engine) {
     this.coralGenerator = new CoralGenerator()
-    this.generatorMeshes = []
     this.gui = new lil.GUI()
   }
 

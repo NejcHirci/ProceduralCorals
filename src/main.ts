@@ -1,8 +1,13 @@
 import './style.scss'
 import { Engine } from './engine/Engine'
-import { GeneratorScene } from './my-generator/GeneratorScene'
+import { Experience } from './engine/Experience'
 
 new Engine({
   canvas: document.querySelector('#canvas') as HTMLCanvasElement,
-  experience: GeneratorScene
+  experience: class implements Experience {
+    resources = []
+    init() {}
+    update() {}
+    resize() {}
+  }
 })
