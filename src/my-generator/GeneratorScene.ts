@@ -131,7 +131,7 @@ export class GeneratorScene implements Experience {
   }
 
   createSkybox() {
-    let texture = new THREE.TextureLoader().load('assets/skybox.jpg')
+    let texture = new THREE.TextureLoader().load('/skybox.jpg')
     let skyboxGeo = new THREE.SphereGeometry(1000, 25, 25)
     let skyboxMat = new THREE.MeshPhongMaterial({
       map: texture,
