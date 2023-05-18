@@ -5,6 +5,8 @@ import { Experience } from '../engine/Experience'
 import { Resource } from '../engine/Resources'
 import { CoralGenerator } from './CoralGenerator'
 
+import SkyboxTexture from '../../assets/skybox.jpg';
+
 export class GeneratorScene implements Experience {
   resources: Resource[] = []
   private coralGenerator: CoralGenerator
@@ -131,7 +133,7 @@ export class GeneratorScene implements Experience {
   }
 
   createSkybox() {
-    let texture = new THREE.TextureLoader().load('/skybox.jpg')
+    let texture = new THREE.TextureLoader().load(SkyboxTexture);
     let skyboxGeo = new THREE.SphereGeometry(1000, 25, 25)
     let skyboxMat = new THREE.MeshPhongMaterial({
       map: texture,

@@ -381,7 +381,8 @@ export class CoralGenerator {
       let newBranches: Branch[] = []
 
       // Create new branches in all attractor directions but only if the branch has enough energy and space
-      this.branches.forEach((branch) => {
+      for (let i=0; i < this.branches.length; i++) {
+        let branch = this.branches[i];
         if (branch.attractors.length > 0 && branch.energy > this.minEnergy) {
           // Sort branch attractors by distance
           branch.attractors.sort((a, b) => {
@@ -428,7 +429,7 @@ export class CoralGenerator {
             }
           }
         }
-      });
+      };
       this.branches.push(...newBranches);
     } else {
       // Otherwise, we just grow the edges of the mesh but we must expend energy
