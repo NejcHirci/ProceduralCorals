@@ -26,6 +26,7 @@ export class CoralGenerator {
 
   // Growth parameters
   public startPosition: THREE.Vector3 = new THREE.Vector3(0, 0, 0);
+  public maxInitialBranches: number = 5;
   public branchLength: number = 0.06;
   public timeBetweenIterations: number = 0.25;
   public randomGrowth: number = 0.5;
@@ -46,6 +47,7 @@ export class CoralGenerator {
   private extremities: Branch[] = []
   private numRemainingAttractors: number = 0
   public timeSinceLastIteration: number = 0
+  private color: THREE.Color = new THREE.Color(0xff4c00);
 
   public geometry: THREE.BufferGeometry
 
@@ -63,23 +65,19 @@ export class CoralGenerator {
   init() {
     this.GenerateAttractors();
 
-    let closestAttr = null;
-    let closestDist = 1000;
-    this.attractors.forEach((attractor) => {
-      let dist = attractor.distanceTo(this.startPosition);
-      if (dist < closestDist) {
-        closestDist = dist;
-        closestAttr = attractor;
+    // Find closest attractor equal to the number of initial branches
+    
+    this.attractors.sort((a, b) => { return a.distanceTo(this.startPosition) - b.distanceTo(this.startPosition) });
+
+    // Create initial branches
+    for (let i = 0; i < this.maxInitialBranches; i++) {
+      if (this.attractors[i].distanceTo(this.startPosition) < this.attractorStrength * 2) {
+        let direction = this.attractors[i].clone().sub(this.startPosition);
+        direction.normalize();
+        let branch = new Branch(this.startPosition, direction.multiplyScalar(this.branchLength), direction, null, this.extremitiesSize, 1.0);
+        this.branches.push(branch);
       }
-    });
-
-    if (closestAttr == null) { closestAttr = new THREE.Vector3(0, 0, 0); }
-
-    // Generate k first branches based on attractors
-    let direction = closestAttr.clone().sub(this.startPosition);
-    direction.normalize();
-    let branch = new Branch(this.startPosition, direction.multiplyScalar(this.branchLength), direction, null, this.extremitiesSize, 1.0);
-    this.branches.push(branch);
+    }
   }
 
   update(delta: number) {
@@ -234,7 +232,7 @@ export class CoralGenerator {
     geometry.computeVertexNormals();
 
     const material = new THREE.MeshPhongMaterial({
-      color: 0xff4c00,
+      color: this.color,
       side: THREE.DoubleSide,
       wireframe: false,
     })
@@ -303,7 +301,7 @@ export class CoralGenerator {
   }
 
   CreateGUI(gui: lil.GUI) {
-    // Create attractor folder
+    gui.addColor(this, 'color').name("Color").onChange(() => { this.Reset() });
     gui.add({
       export: () => {
         MeshExporter.exportMesh(this.GenerateMeshFromVerts(), "coral.gltf");
@@ -322,6 +320,7 @@ export class CoralGenerator {
     // Create branch folder
     const branchFolder = gui.addFolder('Branches');
     branchFolder.open();
+    branchFolder.add(this, 'maxInitialBranches', 0, 100, 1).name("Initial Count").onChange(() => { this.Reset() });
     branchFolder.add(this, 'extremitiesSize', 0, 1, 0.01).name("Base Width").onChange(() => { this.Reset() });
     branchFolder.add(this, 'branchLength', 0, 10, 0.1).name("Length").onChange(() => { this.Reset() });
     branchFolder.add(this, 'timeBetweenIterations', 0.01, 1, 0.01).name("Growth Speed").onChange(() => { this.Reset() });
@@ -724,6 +723,8 @@ class SamplingShape {
 
 class ObstacleMesh {
 
+
+  public enabled: boolean = false;
   public reset: () => void;
   public shapeType: AttractorShape;
   private radius: number = 1;
@@ -741,6 +742,7 @@ class ObstacleMesh {
 
   updateGUI(gui: lil.GUI) {
     let folder = gui.addFolder("Obstacle");
+    folder.add(this, "enabled").name("Enabled").onChange(this.reset);
     folder.add(this, "shapeType",
       {
         Hemisphere: AttractorShape.Hemisphere, Sphere: AttractorShape.Sphere, Cuboid: AttractorShape.Cuboid,
@@ -756,30 +758,19 @@ class ObstacleMesh {
   }
 
   public IsInside(p: THREE.Vector3, r: number): boolean {
+    if (!this.enabled) return false;
+
     switch (this.shapeType) {
       case AttractorShape.Sphere:
-        return p.distanceTo(this.position) < this.radius + r;
+        return Utils.IsInSphere(p, r, this.position, this.radius);
       case AttractorShape.Hemisphere:
-        return p.distanceTo(this.position) < this.radius + r && p.dot(new THREE.Vector3(0.0, 1.0, 0.0)) > 0;
+        return Utils.IsInHemisphere(p, r, this.position, this.radius);
       case AttractorShape.Cuboid:
-        let v = p.clone().sub(this.position);
-        let x = v.dot(new THREE.Vector3(1, 0, 0));
-        let y = v.dot(new THREE.Vector3(0, 1, 0));
-        let z = v.dot(new THREE.Vector3(0, 0, 1));
-        return Math.abs(x) < this.width / 2 + r && Math.abs(y) < this.height / 2 + r && Math.abs(z) < this.depth / 2 + r;
+        return Utils.IsInCuboid(p, r, this.position, this.width, this.height, this.depth);
       case AttractorShape.Cone:
-        let v2 = p.clone().sub(this.position);
-        let x2 = v2.dot(new THREE.Vector3(1, 0, 0));
-        let y2 = v2.dot(new THREE.Vector3(0, 1, 0));
-        let z2 = v2.dot(new THREE.Vector3(0, 0, 1));
-        let r2 = this.radius * (1 - z2 / this.height);
-        return Math.sqrt(x2 * x2 + y2 * y2) < r2 + r && z2 > 0;
+        return Utils.IsInCone(p, r, this.position, this.radius, this.height);
       case AttractorShape.Cylinder:
-        let v3 = p.clone().sub(this.position);
-        let x3 = v3.dot(new THREE.Vector3(1, 0, 0));
-        let y3 = v3.dot(new THREE.Vector3(0, 1, 0));
-        let z3 = v3.dot(new THREE.Vector3(0, 0, 1));
-        return Math.sqrt(x3 * x3 + y3 * y3) < this.radius + r && Math.abs(z3) < this.height / 2 + r;
+        return Utils.IsInCylinder(p, r, this.position, this.radius, this.height);
     }
   }
 

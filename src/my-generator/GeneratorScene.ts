@@ -28,7 +28,7 @@ export class GeneratorScene implements Experience {
 
   init() {
     const plane = new THREE.Mesh(
-      new THREE.PlaneGeometry(10, 10),
+      new THREE.PlaneGeometry(3, 3),
       new THREE.MeshStandardMaterial({
         color: 0xffffff,
         transparent: true,
@@ -40,9 +40,9 @@ export class GeneratorScene implements Experience {
     plane.receiveShadow = true
 
     this.engine.scene.add(plane)
-    this.engine.scene.add(new THREE.AmbientLight(0xffffff, 0.5))
+    this.engine.scene.add(new THREE.AmbientLight(0xffffff, 0.3))
 
-    let directionalLight = new THREE.DirectionalLight(0xffffff, 1)
+    let directionalLight = new THREE.DirectionalLight(0xffffff, 0.7)
     directionalLight.castShadow = true
     directionalLight.position.set(2, 2, 2)
 
@@ -123,7 +123,7 @@ export class GeneratorScene implements Experience {
         this.obstacleMesh.geometry.dispose()
       }
 
-      if (this.showObstacleMesh) {
+      if (this.showObstacleMesh && this.coralGenerator.obstacleMesh.enabled) {
         this.obstacleMesh = this.coralGenerator.obstacleMesh.GetMesh();
         this.obstacleMesh.castShadow = false;
         this.obstacleMesh.receiveShadow = false;
