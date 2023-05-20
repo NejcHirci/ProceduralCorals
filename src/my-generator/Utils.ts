@@ -89,14 +89,11 @@ export function RandomInCylinder(radius : number, h : number, normal : THREE.Vec
     let eps1 = Math.random();
     let eps2 = Math.random();
 
-    // Get angle from radius and height
-    let angle = Math.atan(radius / h);
-    let phi = 2 * Math.PI * eps1;
-    let u = eps2 * (1 - Math.cos(angle)) + Math.cos(angle);
-
-    let x = Math.sqrt(1 - u * u) * Math.cos(phi);
-    let z = Math.sqrt(1 - u * u) * Math.sin(phi);
-    let y = u;
+    let theta = 2 * Math.PI * eps1;
+    let r = Math.sqrt(eps2) * radius;
+    let x = r * Math.cos(theta);
+    let z = r * Math.sin(theta);
+    let y = Math.random() * h;
 
     let v = new THREE.Vector3(x, y, z);
     let quaternion = new THREE.Quaternion();

@@ -28,7 +28,7 @@ export class CoralGenerator {
   public startPosition: THREE.Vector3 = new THREE.Vector3(0, 0, 0);
   public maxInitialBranches: number = 5;
   public branchLength: number = 0.06;
-  public timeBetweenIterations: number = 0.25;
+  public timeBetweenIterations: number = 0.1;
   public randomGrowth: number = 0.5;
   public branchingProbability: number = 0.000000001;
   public maxBranchingAngle: number = Math.PI / 2;
@@ -139,49 +139,60 @@ export class CoralGenerator {
       }
     });
     let numExtremities = extremities.length;
-    //this.FixSelfIntersections();
     let vertices = new Float32Array((this.branches.length + 1) * this.radialSegments * 3);
     let indices = new Uint32Array(this.branches.length * this.radialSegments * 6 + numExtremities * (this.radialSegments - 2) * 3);
+
+    let axis, quaternion, angle;
 
     // Construct vertices
     for (let i = 0; i < this.branches.length; i++) {
       this.branches[i].verticesId = i * this.radialSegments;
 
-      // Quaternion rotation to align branch with its direction
-      let quaternion = new THREE.Quaternion();
-      let dir = this.branches[i].direction.clone();
-      let norm = new THREE.Vector3(0, 1, 0);
-      dir.normalize();
+      if (this.branches[i].parent == null) {
+        this.branches[i].rightVector = new THREE.Vector3(1,0,0);
+      } else {
+        // Compute quaternion to rotate right vector based on parent direction and current direction
+        let parentDir = this.branches[i].parent!.direction.clone();
+        let dir = this.branches[i].direction.clone();
 
-      // Check if same hemisphere
-      quaternion.setFromAxisAngle
-      quaternion.setFromUnitVectors(norm, dir);
+        // Rotate parent right vector according to angle between parent direction and current direction
+        angle = parentDir.angleTo(dir);
+        axis = new THREE.Vector3();
+        axis.crossVectors(parentDir, dir);
+        quaternion = new THREE.Quaternion();
+        quaternion.setFromAxisAngle(axis, angle);
+        this.branches[i].rightVector = this.branches[i].parent!.rightVector.clone().applyQuaternion(quaternion);
+      }
 
+      let t = this.branches[i].rightVector.clone();
+      t.normalize();
+      axis = this.branches[i].direction.clone();
+      axis.normalize();
       for (let s = 0; s < this.radialSegments; s++) {
-        let angle = s * 2 * Math.PI / this.radialSegments;
-
-        if (dir.dot(norm) < 0) {
-          //angle -= Math.PI / 2;
-        }
-
-        let x = Math.cos(angle);
-        let y = Math.sin(angle);
-        let radius = this.branches[i].GetRadius(new THREE.Vector3(x, 0, y));
+        let radius = this.branches[i].GetRadius(s * 2 * Math.PI / this.radialSegments);
         radius += this.environment.CalculateTemperatureImpact(this.branches[i].end, this.attractors);
-        let vertex = new THREE.Vector3(x * radius, 0, y * radius);
-        vertex.applyQuaternion(quaternion)
+
+        let vertex = new THREE.Vector3();
+        vertex.add(this.startPosition);
         vertex.add(this.branches[i].end);
-        vertex.sub(this.startPosition);
+        vertex.addScaledVector(t, radius);
 
         vertices[i * this.radialSegments * 3 + s * 3] = vertex.x;
         vertices[i * this.radialSegments * 3 + s * 3 + 1] = vertex.y;
         vertices[i * this.radialSegments * 3 + s * 3 + 2] = vertex.z;
 
         if (this.branches[i].parent == null) {
+          angle = s * 2 * Math.PI / this.radialSegments;
           vertices[this.branches.length * this.radialSegments * 3 + s * 3] = this.branches[i].start.x + Math.cos(angle) * this.branches[i].size;
           vertices[this.branches.length * this.radialSegments * 3 + s * 3 + 1] = this.branches[i].start.y;
           vertices[this.branches.length * this.radialSegments * 3 + s * 3 + 2] = this.branches[i].start.z + Math.sin(angle) * this.branches[i].size;
         }
+
+        // Rotate temp right vector
+        angle = 2 * Math.PI / this.radialSegments;
+        quaternion = new THREE.Quaternion();
+        quaternion.setFromAxisAngle(axis, angle);
+        t.applyQuaternion(quaternion); 
       }
     }
 
@@ -321,8 +332,8 @@ export class CoralGenerator {
     const branchFolder = gui.addFolder('Branches');
     branchFolder.open();
     branchFolder.add(this, 'maxInitialBranches', 0, 100, 1).name("Initial Count").onChange(() => { this.Reset() });
-    branchFolder.add(this, 'extremitiesSize', 0, 1, 0.01).name("Base Width").onChange(() => { this.Reset() });
-    branchFolder.add(this, 'branchLength', 0, 10, 0.1).name("Length").onChange(() => { this.Reset() });
+    branchFolder.add(this, 'extremitiesSize', 0, 1, 0.0001).name("Base Width").onChange(() => { this.Reset() });
+    branchFolder.add(this, 'branchLength', 0, 1, 0.0001).name("Length").onChange(() => { this.Reset() });
     branchFolder.add(this, 'timeBetweenIterations', 0.01, 1, 0.01).name("Growth Speed").onChange(() => { this.Reset() });
     branchFolder.add(this, 'randomGrowth', 0, 1, 0.01).name("Random Growth").onChange(() => { this.Reset() });
     branchFolder.add(this, 'branchingProbability', 0, 1, 0.01).name("Branching Probability").onChange(() => { this.Reset() });
@@ -401,7 +412,7 @@ export class CoralGenerator {
             // Grow initial branch
             let newBranch = this.GrowBranch(branch, avgAttractor);
             if (newBranch == null) { return; }
-            branch.energy /= (this.growthDecrease + 1.0);
+            branch.energy /= (this.growthDecrease * 0.5 + 1.0);
             newBranches.push(newBranch);
             // Add new branch to children
             branch.children.push(newBranch);
@@ -417,7 +428,7 @@ export class CoralGenerator {
               if (angle < this.maxBranchingAngle) {
                 let newBranch = this.GrowBranch(branch, branch.attractors[i]);
                 if (newBranch == null) { return; }
-                branch.energy /= (this.growthDecrease + 1.0);
+                branch.energy /= (this.growthDecrease * 0.5 + 1.0);
                 newBranches.push(newBranch);
                 // Add new branch to children
                 branch.children.push(newBranch);
@@ -511,7 +522,7 @@ class Branch {
   public children: Branch[] = []
   public attractors: THREE.Vector3[]
   public verticesId: number = 0
-
+  public rightVector: THREE.Vector3
   // Remaining energy
   public energy: number
 
@@ -530,29 +541,32 @@ class Branch {
     this.energy = energy;
     this.verticesId = 0;
     this.attractors = [];
+    this.rightVector = new THREE.Vector3(1,0,0);
   }
 
-  GetRadius(dir: THREE.Vector3) {
+  GetRadius(angle: number) {
     // Radius will be computer based on the  the directions of children
     if (this.children.length == 0) {
       return this.size
     }
-    // Find child with the closest direction to the given x, y
-    let closestAngle = 1000
+
+    if (this.parent == null) {
+      return this.size
+    }
+
+    let pos = this.parent.end.clone();
+
+    // Find closest child position 
+    let closestDist = 1000
     for (let i = 0; i < this.children.length; i++) {
-      let angle = dir.angleTo(this.children[i].direction)
-      if (angle < closestAngle) {
-        closestAngle = angle;
+      let childPos = this.children[i].end;
+      let dist = childPos.distanceTo(pos);
+      if (dist < closestDist) {
+        closestDist = dist;
       }
     }
-    let radius = this.size + closestAngle * 0.05
 
-    // Smoothen the radius with the parent radius if there is one
-    if (this.parent != null) {
-      let smoothingFactor = 0.5
-      let parentRadius = this.parent.GetRadius(this.direction)
-      radius = radius * (1 - smoothingFactor) + parentRadius * smoothingFactor
-    }
+    let radius = this.size + closestDist * 0.2;
 
     // Add offset based on the angle between the closest child and the given x, y
     return radius
@@ -580,7 +594,7 @@ class Environment {
       .name('Sea Current Influence')
       .onChange(reset)
     folder
-      .add(this, 'temperatureInfluence', 0, 1, 0.01)
+      .add(this, 'temperatureInfluence', 0, 0.1, 0.001)
       .name('Temperature Influence')
       .onChange(reset)
   }
@@ -684,7 +698,7 @@ class SamplingShape {
   }
 
   public GetMesh() {
-    let material = new THREE.MeshBasicMaterial({ color: 0x00ff00, wireframe: true, transparent: true, opacity: 0.05 });
+    let material = new THREE.MeshBasicMaterial({ color: 0x00ff00, wireframe: true, transparent: true, opacity: 0.1 });
     let mesh: THREE.Mesh;
 
     let rot = new THREE.Quaternion();
