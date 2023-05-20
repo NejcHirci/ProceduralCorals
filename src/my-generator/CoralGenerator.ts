@@ -3,6 +3,7 @@ import * as lil from 'lil-gui'
 import * as Utils from './Utils'
 import * as BufferGeometryUtils from 'three/examples/jsm/utils/BufferGeometryUtils.js'
 import * as MeshExporter from './MeshExporter'
+import { seededRandom } from 'three/src/math/MathUtils'
 
 enum AttractorShape {
   Sphere,
@@ -38,7 +39,7 @@ export class CoralGenerator {
   public obstacleMesh: ObstacleMesh;
 
   // Geometry parameters
-  public radialSegments: number = 12
+  public radialSegments: number = 20;
   public extremitiesSize: number = 0.02
 
   // Internal variables
@@ -169,7 +170,7 @@ export class CoralGenerator {
       axis = this.branches[i].direction.clone();
       axis.normalize();
       for (let s = 0; s < this.radialSegments; s++) {
-        let radius = this.branches[i].GetRadius(s * 2 * Math.PI / this.radialSegments);
+        let radius = this.branches[i].GetRadius(s * 2 * Math.PI / this.radialSegments, i);
         radius += this.environment.CalculateTemperatureImpact(this.branches[i].end, this.attractors);
 
         let vertex = new THREE.Vector3();
@@ -526,6 +527,8 @@ class Branch {
   // Remaining energy
   public energy: number
 
+  private randSize: number
+
   constructor(
     start: THREE.Vector3, end: THREE.Vector3,
     direction: THREE.Vector3,
@@ -542,19 +545,21 @@ class Branch {
     this.verticesId = 0;
     this.attractors = [];
     this.rightVector = new THREE.Vector3(1,0,0);
+    this.randSize = Math.random();
   }
 
-  GetRadius(angle: number) {
+  GetRadius(angle : number, index : number) {
     // Radius will be computer based on the  the directions of children
     if (this.children.length == 0) {
       return this.size
     }
 
+    let pos;
     if (this.parent == null) {
-      return this.size
+      pos = new THREE.Vector3(0, 0, 0);
+    } else {
+      pos = this.parent.end.clone();
     }
-
-    let pos = this.parent.end.clone();
 
     // Find closest child position 
     let closestDist = 1000
@@ -566,10 +571,10 @@ class Branch {
       }
     }
 
-    let radius = this.size + closestDist * 0.2;
+    let radius = this.size + closestDist * 0.5 + this.randSize * 0.015 * Math.cos(Math.PI * index);
 
     // Add offset based on the angle between the closest child and the given x, y
-    return radius
+    return radius;
   }
 }
 
