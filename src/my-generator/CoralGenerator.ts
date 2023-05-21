@@ -3,7 +3,6 @@ import * as lil from 'lil-gui'
 import * as Utils from './Utils'
 import * as BufferGeometryUtils from 'three/examples/jsm/utils/BufferGeometryUtils.js'
 import * as MeshExporter from './MeshExporter'
-import { seededRandom } from 'three/src/math/MathUtils'
 
 enum AttractorShape {
   Sphere,
@@ -124,7 +123,7 @@ export class CoralGenerator {
       let attractor = this.attractorShape.SampleShape();
 
       // Check if attractor is inside obstacle
-      if (!this.obstacleMesh.IsInside(attractor, 0.0)) {
+      if (!this.obstacleMesh.IsInside(attractor)) {
         this.attractors.push(attractor);
       }
     }
@@ -170,7 +169,7 @@ export class CoralGenerator {
       axis = this.branches[i].direction.clone();
       axis.normalize();
       for (let s = 0; s < this.radialSegments; s++) {
-        let radius = this.branches[i].GetRadius(s * 2 * Math.PI / this.radialSegments, i);
+        let radius = this.branches[i].GetRadius(i);
         radius += this.environment.CalculateTemperatureImpact(this.branches[i].end, this.attractors);
 
         let vertex = new THREE.Vector3();
@@ -480,7 +479,7 @@ export class CoralGenerator {
 
     // Check if new direction does not intersect with an obstacle
     let tempEnd = branch.end.clone().add(newDirection.clone().multiplyScalar(this.branchLength));
-    if (this.obstacleMesh.IsInside(tempEnd, this.extremitiesSize)) {
+    if (this.obstacleMesh.IsInside(tempEnd)) {
       // If it does, we try to find a new direction
       let newDirectionFound = false;
       let nbTries = 0;
@@ -489,7 +488,7 @@ export class CoralGenerator {
         newDirection.add(this.environment.CalculateSeaCurrentImpact());
         newDirection.normalize();
         tempEnd = branch.end.clone().add(newDirection.clone().multiplyScalar(this.branchLength));
-        if (!this.obstacleMesh.IsInside(tempEnd, this.extremitiesSize)) {
+        if (!this.obstacleMesh.IsInside(tempEnd)) {
           newDirectionFound = true;
           break;
         }
@@ -548,7 +547,7 @@ class Branch {
     this.randSize = Math.random();
   }
 
-  GetRadius(angle : number, index : number) {
+  GetRadius(index : number) {
     // Radius will be computer based on the  the directions of children
     if (this.children.length == 0) {
       return this.size
