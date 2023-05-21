@@ -776,20 +776,20 @@ class ObstacleMesh {
     folder.add(this.position, "z", -5, 5, 0.01).name("Position Z").onChange(this.reset);
   }
 
-  public IsInside(p: THREE.Vector3, r: number): boolean {
+  public IsInside(p: THREE.Vector3): boolean {
     if (!this.enabled) return false;
 
     switch (this.shapeType) {
       case AttractorShape.Sphere:
-        return Utils.IsInSphere(p, r, this.position, this.radius);
+        return Utils.IsInSphere(p, this.position, this.radius);
       case AttractorShape.Hemisphere:
-        return Utils.IsInHemisphere(p, r, this.position, this.radius);
+        return Utils.IsInHemisphere(p, this.position, this.radius);
       case AttractorShape.Cuboid:
-        return Utils.IsInCuboid(p, r, this.position, this.width, this.height, this.depth);
+        return Utils.IsInCuboid(p, this.position, this.width, this.height, this.depth);
       case AttractorShape.Cone:
-        return Utils.IsInCone(p, r, this.position, this.radius, this.height);
+        return Utils.IsInCone(p, this.position, this.radius, this.height);
       case AttractorShape.Cylinder:
-        return Utils.IsInCylinder(p, r, this.position, this.radius, this.height);
+        return Utils.IsInCylinder(p, this.position, this.radius, this.height);
     }
   }
 
@@ -812,11 +812,11 @@ class ObstacleMesh {
         break;
       case AttractorShape.Cone:
         mesh = new THREE.Mesh(new THREE.ConeGeometry(this.radius, this.height, 32), material);
-        mesh.position.set(this.position.x, this.position.y, this.position.z);
+        mesh.position.set(this.position.x, this.position.y + this.height/2, this.position.z);
         break;
       case AttractorShape.Cylinder:
         mesh = new THREE.Mesh(new THREE.CylinderGeometry(this.radius, this.radius, this.height, 32), material);
-        mesh.position.set(this.position.x, this.position.y, this.position.z);
+        mesh.position.set(this.position.x, this.position.y + this.height/2, this.position.z);
         break;
     }
     return mesh;

@@ -104,44 +104,50 @@ export function RandomInCylinder(radius : number, h : number, normal : THREE.Vec
     return v;
 }
 
-export function IsInCuboid(pos: THREE.Vector3, size:number,  cubePos: THREE.Vector3, w: number, h: number, d: number) {
+export function IsInCuboid(pos: THREE.Vector3, cubePos: THREE.Vector3, w: number, h: number, d: number) {
     let x = pos.x - cubePos.x;
     let y = pos.y - cubePos.y;
     let z = pos.z - cubePos.z;
-    return x - size >= 0 && x - size <= w && y - size >= 0 && y - size <= h && z - size >= 0 && z - size <= d;
+
+    return x >= -w / 2 && x <= w / 2 && y >= -h / 2 && y <= h / 2 && z >= -d / 2 && z <= d / 2;
 }
 
-export function IsInCylinder(pos: THREE.Vector3, size: number, cylinderPos : THREE.Vector3, radius: number, height: number) {
+export function IsInCylinder(pos: THREE.Vector3, cylinderPos : THREE.Vector3, radius: number, height: number) {
     let x = pos.x - cylinderPos.x;
     let y = pos.y - cylinderPos.y;
     let z = pos.z - cylinderPos.z;
     let dist = Math.sqrt(x * x + z * z);
-    let orth_dist = Math.sqrt(dist * dist - y * y);
-    return orth_dist <= radius && y - size >= 0 && y - size <= height;
+    return dist <= radius && 0 <= y && y <= height;
 }
 
-export function IsInCone(pos: THREE.Vector3, size:number, conePos: THREE.Vector3, radius: number, height: number) {
+export function IsInCone(pos: THREE.Vector3, conePos: THREE.Vector3, radius: number, height: number) {
     let x = pos.x - conePos.x;
     let y = pos.y - conePos.y;
     let z = pos.z - conePos.z;
-    let dist = Math.sqrt(x * x + z * z);
-    let cone_dist = dist * height / radius;
-    let cone_rad = (cone_dist / height) * size;
-    let orth_dist = Math.sqrt(dist * dist - cone_dist * cone_dist);
-    return orth_dist <= cone_rad && y - size >= 0;
+    pos = new THREE.Vector3(x, y, z);
+
+    let tip = new THREE.Vector3(0, height, 0);
+    let dir = new THREE.Vector3(0, -1.0, 0);
+    let cone_dist = pos.sub(tip).dot(dir);
+
+    if (cone_dist < 0 || cone_dist > height) { return false; }
+
+    let cone_rad = (cone_dist / height) * radius;
+    let orth_dist = pos.sub(tip).sub(dir.multiplyScalar(cone_dist)).length();
+    return orth_dist <= cone_rad;
 }
 
-export function IsInSphere(pos: THREE.Vector3, size:number, spherePos: THREE.Vector3, radius: number) {
+export function IsInSphere(pos: THREE.Vector3, spherePos: THREE.Vector3, radius: number) {
     let x = pos.x - spherePos.x;
     let y = pos.y - spherePos.y;
     let z = pos.z - spherePos.z;
-    return Math.sqrt(x * x + y * y + z * z) + size <= radius;
+    return Math.sqrt(x * x + y * y + z * z) <= radius;
 }
 
-export function IsInHemisphere(pos: THREE.Vector3, size:number, spherePos: THREE.Vector3, radius: number) {
+export function IsInHemisphere(pos: THREE.Vector3, spherePos: THREE.Vector3, radius: number) {
     let x = pos.x - spherePos.x;
     let y = pos.y - spherePos.y;
     let z = pos.z - spherePos.z;
-    return Math.sqrt(x * x + y * y + z * z) + size <= radius && y - size >= 0;
+    return Math.sqrt(x * x + y * y + z * z) <= radius && y >= 0;
 }
 
